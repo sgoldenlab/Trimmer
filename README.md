@@ -6,4 +6,4 @@ A major technical limitation in the study of complex social behavior of freely m
 
 The Basic Trimmer allows the user to navigate through all of the start/end points that they would like to trim and handles the trimming process for them.
 
-For more information on usage please refer to the [docs](https://trimmer-golden-lab.readthedocs.io/en/latest/index.html)
+For more information on usage please refer to the Trimmer's [readthedocs](https://trimmer-golden-lab.readthedocs.io/en/latest/index.html)
