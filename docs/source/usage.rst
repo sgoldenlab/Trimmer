@@ -1,17 +1,6 @@
 Usage
 =====
 
-.. _installation:
-
-Installation
-------------
-
-To use the Basic Trimmer, first install it through ?:
-
-.. code-block:: console
-
-   l8ter
-
 The Process
 ------------
 The Basic Trimmer is split into two portions - Part 1: Getting the Trim Points and Part 2: Trimming the Videos.
