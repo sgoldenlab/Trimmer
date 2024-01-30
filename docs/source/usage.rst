@@ -38,7 +38,8 @@ Your screen should look like the following
 Step 4. Click to change these properties. 
 """""""""""
 Change the properties of the video by clicking on each box and typing in the appropriate information
-::
+
+.. 
 
    These properties will be used to name the output of this script (the metadata). 
    The "Preview output prefix" shows what the file name will look like. As shown, all but “User Initials” will be used.
@@ -58,7 +59,7 @@ Using the scroll bar, as well as the frame jump buttons, navigate to the start o
 Step 6: Click "Get trim points" 
 """""""""""
 
-::
+..
 
    Starting from your current frame, the script will load 2-minute trials separated by 2 minute intervals.
    This should correspond with the start/end of the trials in your video
@@ -83,7 +84,7 @@ c) Once you have navigated to the ending frame of that trial, Click the appropri
 
 d) Click the appropriate “Add trim pts Label” to type in your label
 
-::
+..
 
    These labels will be used to name the clips once they are saved. 
    For example, if you are clipping a portion of trial 3 from 10:16 - 10:35 and typed in the label "pre_rew", 
@@ -94,7 +95,7 @@ d) Click the appropriate “Add trim pts Label” to type in your label
 
 e) Click the “+” button to add the trim point to the list at the bottom. 
 
-::
+..
 
 Notice that the current frame moves from the end to the start, and that the end now has the original ending point. This is so that the next trim point can be found after this clip. 
 
