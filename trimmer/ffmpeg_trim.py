@@ -5,7 +5,9 @@ import yaml
 from asynccpu import ProcessTaskPoolExecutor
 # from asyncffmpeg import FFmpegCoroutineFactory, StreamSpec
 import asyncio
-
+import PySimpleGUI as sg
+import sys
+import pdb
 
 # %% Functions
 
@@ -43,6 +45,34 @@ def get_clip_name(label, out_base_path, replace=False):
                 print(f'skipping clip {clip_out_path}')
                 return None
     return clip_out_path
+
+
+def gui_prompt():
+    """Simple gui prompt to request file selection for ffmpeg trimming parameters.
+
+    Returns
+    -------
+    folder: str or None
+        Path to metadata.yml or None if none selected before exiting.
+    """
+    left_col = [[sg.Text('Path to metadata.yaml folder:'), sg.In(size=(25,1), enable_events=True ,key='-FOLDER-'), sg.FolderBrowse()]]
+    layout = [[sg.Column(left_col, element_justification='c')] ]   
+    window = sg.Window('Select folder containing metadata.yml to start trimming.', layout,resizable=True)
+    folder = None
+    while True:
+        event, values = window.read()
+        if event in (sg.WIN_CLOSED, 'Exit'):
+            break
+        if event == '-FOLDER-':
+            window['-FOLDER-'].update(text_color='black')
+            if 'metadata.yaml' not in os.listdir(values['-FOLDER-']):
+                window['-FOLDER-'].update(text_color='red')
+                window['-FOLDER-'].update('No metadata.yaml found. Please try again.')
+                continue
+            folder = values['-FOLDER-'] 
+            break
+    window.close()
+    return folder
 
 
 # %% Async functions
@@ -84,7 +114,7 @@ async def trim_process(task_id, v_in, t_start, t_end):
 
 async def main(video, metadata, replace=False, debug=True):
     # for video in to_trim_list:
-    # TODO: input() to ask whether to down sample, 
+    # TODO: input() or in gui to ask whether to down sample, 
     #   diff fx or modified trim_process to include downsampling with ff.filter I think
     # video_info, _, export_info, isTrimmed = metadata[video].values() 
     _, export_info, isTrimmed, video_info = metadata[video].values() 
@@ -96,7 +126,7 @@ async def main(video, metadata, replace=False, debug=True):
     fps = video_info['FPS']
     # height width?
     assert os.path.isfile(vid_path), f'no video found: {vid_path}'
-    print(f'Trimming video: "{os.path.relpath(vid_path)}"')
+    print(f'Trimming video: "{os.path.abspath(vid_path)}"')
 
     # export info
     times_path = export_info['times_path']
@@ -107,7 +137,9 @@ async def main(video, metadata, replace=False, debug=True):
     assert os.path.isfile(times_path), f'no trim points array found: {times_path}'
     assert os.path.isfile(labels_path), f'no clip labels array found: {labels_path}'
     trim_points = np.load(times_path, allow_pickle=True)
-    clip_labels = np.load(labels_path, allow_pickle=True)
+    clip_labels = export_info['clips_details'] # np.load(labels_path, allow_pickle=True)
+    
+    
     
     # TODO: may change this to clips_excluded or something, if excluded checkboxes actually get used
     #   Currently excluded cboxes aren't needed since trimpoints need to be manually added.
@@ -122,15 +154,23 @@ async def main(video, metadata, replace=False, debug=True):
         awaitables = {executor.create_process_task(trim_process, z, v_in, x, y,) 
                         for x,y,z in zip(trim_points[:,0], trim_points[:,1], clip_paths) if z is not None}
         results = await asyncio.gather(*awaitables)
-    print(f'...finished trimming clips for video "{os.path.relpath(video)}"')
+    metadata[video].update({'trimmed': True})   # video now labeled as trimmed 
+    print(f'...finished trimming clips for video "{os.path.abspath(video)}"')
 
 if __name__ == '__main__':
     # %% Set up 
     debug = False
     # Get source folders for videos and metadata file, if present
     # meta_fold = r'./'
-    meta_fold = r'./test_folder/clips'
+    
+    # meta_fold = r'./test_folder/clips'
+    # meta_filepath = os.path.join(meta_fold, 'metadata.yaml')
+    meta_fold = gui_prompt()
+    if not meta_fold:
+        print('No folder selected. Closing...')
+        quit()
     meta_filepath = os.path.join(meta_fold, 'metadata.yaml')
+
     # vids_fold = rf'../'   # changed this to get the paths from the metadata
     
     
@@ -155,5 +195,5 @@ if __name__ == '__main__':
 
     # %% Main loop
     for video in to_trim_list:
-        asyncio.run(main(video, metadata, replace=False, debug=True))
+        asyncio.run(main(video, metadata, replace=False, debug=False))
     print('\nFinished all trimming.')
