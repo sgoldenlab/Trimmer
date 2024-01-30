@@ -1,4 +1,4 @@
-Welcome to the Basic Trimmer's
+Welcome to the Basic Trimmer
 ===================================
 
 The **Basic Trimmer** is a tool to aid the use of Simple Behavioral Analysis (SimBA) through data preparation. 
@@ -18,4 +18,3 @@ Contents
    installation
    usage
    tips_tricks
-   installation
