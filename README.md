@@ -8,4 +8,37 @@ The Basic Trimmer allows the user to navigate through all of the start/end point
 
 For more information on usage please refer to the Trimmer's [readthedocs](https://trimmer-golden-lab.readthedocs.io/en/latest/index.html)
 
-![Full Trimmer Process Gif](https://github.com/virginiavw/Trimmer/blob/86d55e09d7f27e50bddf08f25eda51fb78636b23/docs/source/images/fullprocess.gif)
+![Full Trimmer Process Gif](https://github.com/virginiavw/Trimmer/raw/86d55e09d7f27e50bddf08f25eda51fb78636b23/docs/source/images/fullprocess.gif)
+
+
+## Authors
+*   **Kevin N. Schneider**
+    *   GitHub: [@kevsch88](https://github.com/kevsch88)
+    *   Email: kevsch88@gmail.com
+*   **Virginia Wang**
+    *   GitHub: [@virginiavw](https://github.com/virginiavw)
+
+## Prerequisites
+
+Currently tested working only on Windows (Aug 2025).
+
+**UV package manager**  
+At the moment environment setup is recommended via the [uv](https://docs.astral.sh/uv/getting-started/installation/) package manager for streamlined setup, which uses the `pyproject.toml` file.
+
+**FFMPEG**  
+For video clipping/trimming.
+
+
+## Installation
+
+Clone the repo
+```
+git clone https://github.com/sgoldenlab/Trimmer.git
+cd Trimmer
+```
+
+After uv is installed, the environment can be quickly installed from within the with:  
+`uv sync`
+
+Once complete, the trimmer GUI should launch with
+`uv run trimmer\basic_trimmer_class.py`
