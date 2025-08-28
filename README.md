@@ -41,4 +41,4 @@ After uv is installed, the environment can be quickly installed from within the 
 `uv sync`
 
 Once complete, the trimmer GUI should launch with
-`uv run trimmer\basic_trimmer_class.py`
+`uv run basic_trimmer`
