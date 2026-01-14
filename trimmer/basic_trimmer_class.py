@@ -10,6 +10,7 @@ import imutils
 import numpy as np
 import pandas as pd
 import yaml
+from config import PreferencesManager
 from imutils.video import FileVideoStream
 
 # %% Setup
@@ -127,10 +128,14 @@ def place(elem):  # places pysimplegui element and expands its horizontal (x) re
     return sg.Column([[elem]], pad=(0, 0), expand_x=True)
 
 
-def buildWindow(debug=False):  # TODO: disable text boxes, buttons etc as relevant
+def buildWindow(
+    debug=False, preferences=None
+):  # TODO: disable text boxes, buttons etc as relevant
     """
     update fileName, filePath, Slider(tot_frames), info column, checkboxes (default=next(reward), text_color=next(r_col))
     """
+    if preferences is None:
+        preferences = {}
 
     top_region = [
         [
@@ -142,8 +147,18 @@ def buildWindow(debug=False):  # TODO: disable text boxes, buttons etc as releva
             ),
             #    sg.Column('', expand_x=True),
             sg.Text("Videos Folder:", font="Arial 10", pad=((5, 0), 0)),
-            sg.In(size=(40, 1), enable_events=True, key="-FOLDERI-", pad=((1, 5), 0)),
-            sg.FolderBrowse(initial_folder="./", font="Arial 10", pad=((0, 25), 0)),
+            sg.In(
+                default_text=preferences.get("last_folder", ""),
+                size=(40, 1),
+                enable_events=True,
+                key="-FOLDERI-",
+                pad=((1, 5), 0),
+            ),
+            sg.FolderBrowse(
+                initial_folder=preferences.get("last_folder", "./"),
+                font="Arial 10",
+                pad=((0, 25), 0),
+            ),
             sg.Text("Output Folder:", font="Arial 10", pad=(0, 0)),
             sg.In(
                 "", size=(40, 1), enable_events=True, key="-FOLDERO-", pad=((1, 5), 0)
@@ -348,7 +363,7 @@ def buildWindow(debug=False):  # TODO: disable text boxes, buttons etc as releva
                             pad=(0, 5),
                         ),
                         sg.I(
-                            "",
+                            preferences.get("user_name", ""),
                             key="-user-",
                             text_color="gray",
                             enable_events=True,
@@ -455,7 +470,10 @@ def buildWindow(debug=False):  # TODO: disable text boxes, buttons etc as releva
         [
             sg.Text("Trial Duration (seconds):", font="Arial 10", size=(20, 1)),
             sg.Input(
-                default_text="120", size=(8, 1), key="-TRIAL_DURATION-", font="Arial 10"
+                default_text=str(preferences.get("trial_duration", 120)),
+                size=(8, 1),
+                key="-TRIAL_DURATION-",
+                font="Arial 10",
             ),
         ],
         [
@@ -463,7 +481,10 @@ def buildWindow(debug=False):  # TODO: disable text boxes, buttons etc as releva
                 "Trial Start-to-Start Spacing (seconds):", font="Arial 10", size=(30, 1)
             ),
             sg.Input(
-                default_text="240", size=(8, 1), key="-TRIAL_SPACING-", font="Arial 10"
+                default_text=str(preferences.get("trial_spacing", 240)),
+                size=(8, 1),
+                key="-TRIAL_SPACING-",
+                font="Arial 10",
             ),
         ],
         [
@@ -836,8 +857,12 @@ def popup(warning: str, type: str = None):
 def main(debug=False):
     sg.theme("Dark Blue 3")
 
+    # Load preferences
+    prefs_manager = PreferencesManager()
+    prefs = prefs_manager.preferences
+
     # 1 ---------------- build layout/initialize variable
-    window = buildWindow(debug=debug)
+    window = buildWindow(debug=debug, preferences=prefs)
     vidFile = None
     paused = True  # start video paused
     stop = False  # used to stop loop for some events
@@ -916,6 +941,11 @@ def main(debug=False):
                 window["-FOLDERO-"].update(value=os.path.abspath(folder_out))
             else:
                 folder_out = values["-FOLDERO-"]
+
+            # Save folder preferences
+            prefs_manager.update_preference("last_folder", folder_in)
+            prefs_manager.update_preference("output_folder", folder_out)
+
             # scan source folder for videos and metadata, skip videos already in metadata
             vflist, vdone = scan_video_folder(
                 folder_in, folder_out, file_exts_accepted, debug
@@ -1069,6 +1099,10 @@ def main(debug=False):
                 window[input_elem].unbind("<FocusIn>")
                 if debug:
                     print(f"unbound {input_elem} from focusin")
+
+                # Save user name preference
+                if input_elem == "-user-":
+                    prefs_manager.update_preference("user_name", values[input_elem])
             window.refresh()
 
         # TODO: should make func for cur_frame updates, since the same elements tend to need updating in turn
@@ -1216,6 +1250,10 @@ def main(debug=False):
                     "yesno",
                 ):
                     continue
+
+            # Save trial duration and spacing preferences
+            prefs_manager.update_preference("trial_duration", trial_duration)
+            prefs_manager.update_preference("trial_spacing", trial_spacing)
 
             print(
                 f"Approximated trials' start/end to video frames (min:sec)... [Duration: {trial_duration}s, Spacing: {trial_spacing}s]"
