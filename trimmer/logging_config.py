@@ -4,6 +4,9 @@ from pathlib import Path
 
 from loguru import logger
 
+BASE_DIR = Path(__file__).resolve().parent
+LOG_DIR = BASE_DIR / "logs"
+
 
 def setup_logging(output_folder=None):
     """
@@ -21,7 +24,7 @@ def setup_logging(output_folder=None):
     )
 
     # Add daily log in trimmer folder
-    trimmer_log_dir = Path.home() / ".trimmer" / "logs"
+    trimmer_log_dir = LOG_DIR
     trimmer_log_dir.mkdir(parents=True, exist_ok=True)
 
     logger.add(
