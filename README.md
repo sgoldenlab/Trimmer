@@ -27,6 +27,7 @@ For more information on usage please refer to the Trimmer's [readthedocs](https:
 - [x] Extended logging
 - [ ] Streamlined preset labeling (with and without indexing) for auto-labels
 - [ ] Configurable number of trials
+- [ ] Docs / tutorial overhaul for newly added features
 
 <br> <br> 
 
