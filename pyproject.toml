@@ -10,6 +10,7 @@ dependencies = [
     "ffmpeg-python>=0.2.0",
     "freesimplegui>=5.2.0.post1",
     "imutils>=0.5.4",
+    "loguru>=0.7.0",
     "numpy>=2.0.2",
     "opencv-python>=4.11.0.86",
     "pandas>=2.3.2",

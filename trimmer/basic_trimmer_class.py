@@ -1,15 +1,18 @@
 # %% Imports
 
-import cv2
-import pandas as pd
-import numpy as np
 import os
-import FreeSimpleGUI as sg
 from datetime import datetime
-from time import gmtime, strftime, time, sleep
+from time import gmtime, sleep, strftime, time
+
+import cv2
+import FreeSimpleGUI as sg
 import imutils
-from imutils.video import FileVideoStream
+import numpy as np
+import pandas as pd
 import yaml
+from imutils.video import FileVideoStream
+from logging_config import setup_logging
+from loguru import logger
 
 # %% Setup
 # src_fold = r'./'  # init source folder"
@@ -452,6 +455,28 @@ def buildWindow(debug=False):  # TODO: disable text boxes, buttons etc as releva
     # and exit buttons
     trim_col = [
         [
+            sg.Text("Trial Duration (seconds):", font="Arial 10", size=(20, 1)),
+            sg.Input(
+                default_text="120", size=(8, 1), key="-TRIAL_DURATION-", font="Arial 10"
+            ),
+        ],
+        [
+            sg.Text(
+                "Trial Start-to-Start Spacing (seconds):", font="Arial 10", size=(30, 1)
+            ),
+            sg.Input(
+                default_text="240", size=(8, 1), key="-TRIAL_SPACING-", font="Arial 10"
+            ),
+        ],
+        [
+            sg.Text(
+                "(Spacing is from start of trial N to start of trial N+1)",
+                font="Arial 9",
+                text_color="gray",
+                pad=(0, (0, 10)),
+            ),
+        ],
+        [
             # sg.Text('', size=(6, 1), pad=(1,0)),
             sg.B(
                 "Get trial timepoints",
@@ -462,18 +487,28 @@ def buildWindow(debug=False):  # TODO: disable text boxes, buttons etc as releva
                 pad=(0, (0, 5)),
             ),
             sg.B(
+                "Get Inter-Trial Clips",
+                k="-GET_INTER_TRIAL-",
+                expand_x=False,
+                size=(20, 1),
+                font="Arial 12",
+                pad=(5, (0, 5)),
+            ),
+        ],
+        [
+            sg.B(
                 "Add all",
                 font="Arial 12",
                 k="-add_all-",
                 auto_size_button=True,
-                pad=(12, (0, 5)),
+                pad=(0, (0, 5)),
             ),
             sg.B(
                 "Clear all",
                 font="Arial 12",
                 k="-clr-",
                 auto_size_button=True,
-                pad=(0, (0, 5)),
+                pad=(12, (0, 5)),
             ),
         ],
         [
@@ -813,6 +848,10 @@ def popup(warning: str, type: str = None):
 def main(debug=False):
     sg.theme("Dark Blue 3")
 
+    # Initialize logging (will be reconfigured when output folder selected)
+    setup_logging()
+    logger.info("Trimmer GUI started")
+
     # 1 ---------------- build layout/initialize variable
     window = buildWindow(debug=debug)
     vidFile = None
@@ -870,6 +909,11 @@ def main(debug=False):
                 window["-FOLDERO-"].update(value=os.path.abspath(folder_out))
             else:
                 folder_out = values["-FOLDERO-"]
+
+            # Reconfigure logging with output folder
+            setup_logging(output_folder=folder_out)
+            logger.info(f"Source folder selected: {folder_in}")
+            logger.info(f"Output folder: {folder_out}")
             # scan source folder for videos and metadata, skip videos already in metadata
             vflist, vdone = scan_video_folder(
                 folder_in, folder_out, file_exts_accepted, debug
@@ -911,6 +955,9 @@ def main(debug=False):
             fileRelPath = os.path.join(folder_in, fileName)
             filePath = os.path.abspath(fileRelPath)
 
+            logger.info(f"Loading video: {fileName}")
+            logger.debug(f"Video path: {filePath}")
+
             # reset and load some info from metadata if present
             reset_info(window, fileName, filePath, out_folder=folder_out)
             # cur_frame = 0
@@ -932,12 +979,29 @@ def main(debug=False):
             print("Height: ", height, " Width: ", width)
             print("my screen size; ", sg.Window.get_screen_size())
             fps = round(vidFile.stream.get(cv2.CAP_PROP_FPS))
+
+            logger.debug(
+                f"Video properties - FPS: {fps}, Total frames: {tot_frames}, Resolution: {width}x{height}"
+            )
             # window['sright'].update(f'{strftime("%M:%S", gmtime(num_frames / fps))}')
             trial_num = 12
             vid = vid_info(fps, tot_frames, height, width, trial_num, 0, ret, frame)
             print("Video FPS: ", vid.fps)
             timeout = 1000 // vid.fps
             t = trim_list(trial_num)
+
+            # Clear the "Added Trim Points" listbox
+            listbox_elem.update([])
+
+            # Clear all trial input boxes (start, end, label for trials 1-12)
+            for trial in trial_list:
+                window[f"{trial}_start"].update("", text_color="black")
+                window[f"{trial}_end"].update("", text_color="black")
+                window[f"{trial}_label"].update("")
+                # Re-enable buttons in case they were disabled
+                window[f"{trial}_ADD_TRIMPTS"].update(disabled=False)
+                window[f"{trial}_gstart"].update(disabled=False)
+                window[f"{trial}_gend"].update(disabled=False)
 
             # reset slider, image
             slider_elem.update(0, range=(0, vid.tot_frames))
@@ -1010,6 +1074,10 @@ def main(debug=False):
                 window[input_elem].unbind("<FocusIn>")
                 if debug:
                     print(f"unbound {input_elem} from focusin")
+
+                # Save user name preference
+                if input_elem == "-user-":
+                    prefs_manager.update_preference("user_name", values[input_elem])
             window.refresh()
 
         # TODO: should make func for cur_frame updates, since the same elements tend to need updating in turn
@@ -1127,7 +1195,47 @@ def main(debug=False):
         # "Next Video" button => update info on slide with next video
 
         elif event == "-gtp-":  # get trim points based on current frame
-            print("Approximated trials' start/end to video frames (min:sec)...")
+            # Get user-specified values with validation
+            try:
+                trial_duration = int(values["-TRIAL_DURATION-"])
+                trial_spacing = int(values["-TRIAL_SPACING-"])
+            except ValueError:
+                popup("Trial duration and spacing must be valid integers", "error")
+                continue
+
+            # Validate that values are positive
+            if trial_duration <= 0 or trial_spacing <= 0:
+                popup("Duration and spacing must be positive values", "error")
+                continue
+
+            # Validate that spacing is at least as long as duration (warn about overlaps)
+            if trial_spacing < trial_duration:
+                if not popup(
+                    f"Warning: Trial spacing ({trial_spacing}s) is less than trial duration ({trial_duration}s). Trials will overlap. Continue?",
+                    "yesno",
+                ):
+                    continue
+
+            # Warn if trials may extend beyond video length
+            total_video_time = vid.tot_frames / vid.fps
+            estimated_end_time = trial_spacing * (vid.trial_num - 1) + trial_duration
+            if estimated_end_time > total_video_time:
+                if not popup(
+                    f"Warning: Trials may extend beyond video length ({total_video_time:.0f}s). Continue?",
+                    "yesno",
+                ):
+                    continue
+
+            logger.info(
+                f"Generating trim points - Duration: {trial_duration}s, Spacing: {trial_spacing}s"
+            )
+            logger.debug(
+                f"Starting from frame {vid.cur_frame} ({vid.cur_frame / vid.fps:.2f}s)"
+            )
+
+            print(
+                f"Approximated trials' start/end to video frames (min:sec)... [Duration: {trial_duration}s, Spacing: {trial_spacing}s]"
+            )
             if vid.trial_num == 0:
                 vid.trial_num = 12
 
@@ -1139,8 +1247,12 @@ def main(debug=False):
             t.trim_labels = list()
 
             for i in range(vid.trial_num):
-                start_frame = vid.cur_frame + 240 * vid.fps * i
-                end_frame = start_frame + 120 * vid.fps
+                start_frame = vid.cur_frame + trial_spacing * vid.fps * i
+                end_frame = start_frame + trial_duration * vid.fps
+
+                logger.debug(
+                    f"Trial {i + 1}: {start_frame} to {end_frame} ({t.frame_to_time(start_frame, vid.fps)} to {t.frame_to_time(end_frame, vid.fps)})"
+                )
 
                 if (start_frame > vid.tot_frames) or (end_frame > vid.tot_frames):
                     window[trial_list[i] + "_start"].update(
@@ -1170,6 +1282,44 @@ def main(debug=False):
             # to track actual trial ends when modifying for clips
             original_t_starts = t.trim_starts.copy()
             original_t_ends = t.trim_ends.copy()
+
+        elif event == "-GET_INTER_TRIAL-":  # generate inter-trial interval clips
+            print("Generating inter-trial interval clips...")
+            if vid.trial_num == 0:
+                vid.trial_num = 12
+
+            # Validate that trial trim points exist
+            if len(t.trim_starts) == 0 or len(t.trim_ends) == 0:
+                popup(
+                    "Please generate trial trim points first using 'Get Trimpoints'",
+                    "error",
+                )
+                continue
+
+            # Generate inter-trial clips
+            inter_clips_added = 0
+            for i in range(len(t.trim_ends) - 1):
+                inter_start = t.trim_ends[i]  # End of trial N
+                inter_end = t.trim_starts[i + 1]  # Start of trial N+1
+
+                # Check if interval is valid
+                if inter_end <= inter_start:
+                    print(
+                        f"Skipping invalid interval between trial {i + 1} and {i + 2}"
+                    )
+                    continue
+
+                # Add to trim points with inter-trial label
+                trial_idx = i  # Corresponds to preceding trial
+                label = f"inter_trial_{i + 1}"
+                t.add_trim_points(trial_idx, inter_start, inter_end, label)
+                inter_clips_added += 1
+
+            # Update listbox display
+            t.get_printed_trimpoints_listbox(vid.fps)
+            listbox_elem.update(t.printout)
+
+            print(f"Added {inter_clips_added} inter-trial interval clips")
 
         elif event in [i + "_gstart" for i in trial_list] or event in [
             i + "_gend" for i in trial_list
@@ -1383,6 +1533,8 @@ def main(debug=False):
 
         # save click
         elif event == "-save-":
+            logger.info(f"Saving trim points for video: {values['fileName']}")
+
             if debug:
                 print("Saving...")
             # TODO:
@@ -1499,6 +1651,20 @@ def main(debug=False):
                 )
             # save to yaml file
             save_metadata(out_meta, meta_filepath)
+
+            # Log save completion
+            logger.info(f"Total clips: {len(clip_labels_array)} clips")
+            logger.info(f"Metadata saved: {meta_filepath}")
+            logger.info(f"Times array saved: {trimpts_name}")
+            logger.info(f"Labels array saved: {labels_name}")
+            logger.info(f"CSV summary saved: {out_base}.csv")
+
+            # Log each clip
+            for i, (trial_idx, label) in enumerate(t.trim_pts_labels):
+                start, end = t.trim_pts_array[i][1], t.trim_pts_array[i][2]
+                logger.debug(
+                    f"  Clip {i + 1}: Trial {int(trial_idx) + 1}, Label '{label}', {t.frame_to_time(start, vid.fps)}-{t.frame_to_time(end, vid.fps)}"
+                )
 
         # set current frame and read from stream
         vidFile.stream.set(cv2.CAP_PROP_POS_FRAMES, vid.cur_frame)
