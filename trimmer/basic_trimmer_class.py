@@ -932,6 +932,19 @@ def main(debug=False):
             ]  # listbox with trim points to be exported, if any were added
             event, values = window.read(timeout=timeout)
 
+            # Handle window close immediately, before any other processing
+            if (
+                event == sg.WINDOW_CLOSE_ATTEMPTED_EVENT
+                or event == "Exit"
+                or event == sg.WIN_CLOSED
+            ):
+                if popup(
+                    "Do you really want to exit?\n(Have you saved your work?)", "yesno"
+                ):
+                    break
+                # User said no, continue with next iteration
+                continue
+
             # Log all non-timeout events to file for debugging
             if event not in (sg.TIMEOUT_KEY, None):
                 with open(error_log_path, "a") as f:
@@ -951,14 +964,7 @@ def main(debug=False):
         if stop:
             close_vid(vidFile)
 
-        if event == "Exit" or event == sg.WINDOW_CLOSE_ATTEMPTED_EVENT:
-            if not popup(
-                "Do you really want to exit?\n(Have you saved your work?)", "yesno"
-            ):
-                continue
-            break
-
-        elif event == "bHelp":
+        if event == "bHelp":
             popup(
                 "Well hello my friend!\nSo eventually this button will hopefully lead you to some fun documentation and stuff, "
                 "but for now just ask Virginia or Kevin if you need help! (I hear there is a fun powerpoint you might be sent :) )\n\nThanks my friend."
@@ -1054,8 +1060,6 @@ def main(debug=False):
 
             # reset variables with video information
             tot_frames = vidFile.stream.get(cv2.CAP_PROP_FRAME_COUNT)
-            ret, frame = vidFile.stream.read()
-            frame = imutils.resize(frame, width=1000)
             height, width = (
                 vidFile.stream.get(cv2.CAP_PROP_FRAME_HEIGHT),
                 vidFile.stream.get(cv2.CAP_PROP_FRAME_WIDTH),
@@ -1063,6 +1067,20 @@ def main(debug=False):
             print("Height: ", height, " Width: ", width)
             print("my screen size; ", sg.Window.get_screen_size())
             fps = round(vidFile.stream.get(cv2.CAP_PROP_FPS))
+
+            # Calculate resize factor to maintain 1000px width
+            target_width = 1000
+            resize_factor = target_width / width
+
+            # Read and resize first frame
+            ret, frame = vidFile.stream.read()
+            frame = cv2.resize(
+                frame,
+                None,
+                fx=resize_factor,
+                fy=resize_factor,
+                interpolation=cv2.INTER_LINEAR,
+            )
 
             logger.debug(
                 f"Video properties - FPS: {fps}, Total frames: {tot_frames}, Resolution: {width}x{height}"
@@ -1751,39 +1769,41 @@ def main(debug=False):
                 )
 
         # set current frame and read from stream
-        vidFile.stream.set(cv2.CAP_PROP_POS_FRAMES, vid.cur_frame)
-        vid.ret, vid.frame = vidFile.stream.read()
+        # Only process video frames if video is loaded
+        if vidFile is not None and vid is not None:
+            vidFile.stream.set(cv2.CAP_PROP_POS_FRAMES, vid.cur_frame)
+            vid.ret, vid.frame = vidFile.stream.read()
 
-        if vid.ret and timeout == None:
-            timeout = 1000 // vid.fps
-        if not vid.ret:
-            print("no frames")
-            timeout = None
-            #             cur_frame = int(values['-SLIDER-'])
-            #             vidFile.stream.set(cv2.CAP_PROP_POS_FRAMES, cur_frame)  # set new frame
-            #             slider_elem.update(cur_frame)
-            #             if ret:
-            #                 print("AYO")
-            #             timeout = 1000//fps
-            continue
+            if vid.ret and timeout == None:
+                timeout = 1000 // vid.fps
+            if not vid.ret:
+                print("no frames")
+                timeout = None
+                #             cur_frame = int(values['-SLIDER-'])
+                #             vidFile.stream.set(cv2.CAP_PROP_POS_FRAMES, cur_frame)  # set new frame
+                #             slider_elem.update(cur_frame)
+                #             if ret:
+                #                 print("AYO")
+                #             timeout = 1000//fps
+                continue
 
-        # retrieve frame data from video at position = cur_frame
-        # frame = imutils.resize(frame, width = 1000)
-        window["sright"].update(
-            f"{strftime('%M:%S', gmtime(vid.tot_frames / vid.fps))}"
-        )
+            # retrieve frame data from video at position = cur_frame
+            # frame = imutils.resize(frame, width = 1000)
+            window["sright"].update(
+                f"{strftime('%M:%S', gmtime(vid.tot_frames / vid.fps))}"
+            )
 
-        vid.frame = cv2.resize(
-            vid.frame,
-            None,
-            fx=resize_factor,
-            fy=resize_factor,
-            interpolation=cv2.INTER_LINEAR,
-        )
-        imgbytes = cv2.imencode(".ppm", vid.frame)[
-            1
-        ].tobytes()  # can also use png. ppm found to be more efficient
-        image_elem.update(data=imgbytes)
+            vid.frame = cv2.resize(
+                vid.frame,
+                None,
+                fx=resize_factor,
+                fy=resize_factor,
+                interpolation=cv2.INTER_LINEAR,
+            )
+            imgbytes = cv2.imencode(".ppm", vid.frame)[
+                1
+            ].tobytes()  # can also use png. ppm found to be more efficient
+            image_elem.update(data=imgbytes)
 
     window.close()  # close gui
     if vidFile:
