@@ -1,15 +1,16 @@
 # %% Imports
 
-import cv2
-import pandas as pd
-import numpy as np
 import os
-import FreeSimpleGUI as sg
 from datetime import datetime
-from time import gmtime, strftime, time, sleep
+from time import gmtime, sleep, strftime, time
+
+import cv2
+import FreeSimpleGUI as sg
 import imutils
-from imutils.video import FileVideoStream
+import numpy as np
+import pandas as pd
 import yaml
+from imutils.video import FileVideoStream
 
 # %% Setup
 # src_fold = r'./'  # init source folder"
@@ -451,6 +452,28 @@ def buildWindow(debug=False):  # TODO: disable text boxes, buttons etc as releva
     # Also shows got to buttons, which can be used to locate a the start of a particular trial, and select frame buttons, which can be used to update the start time of a trial.
     # and exit buttons
     trim_col = [
+        [
+            sg.Text("Trial Duration (seconds):", font="Arial 10", size=(20, 1)),
+            sg.Input(
+                default_text="120", size=(8, 1), key="-TRIAL_DURATION-", font="Arial 10"
+            ),
+        ],
+        [
+            sg.Text(
+                "Trial Start-to-Start Spacing (seconds):", font="Arial 10", size=(30, 1)
+            ),
+            sg.Input(
+                default_text="240", size=(8, 1), key="-TRIAL_SPACING-", font="Arial 10"
+            ),
+        ],
+        [
+            sg.Text(
+                "(Spacing is from start of trial N to start of trial N+1)",
+                font="Arial 9",
+                text_color="gray",
+                pad=(0, (0, 10)),
+            ),
+        ],
         [
             # sg.Text('', size=(6, 1), pad=(1,0)),
             sg.B(
@@ -1127,7 +1150,40 @@ def main(debug=False):
         # "Next Video" button => update info on slide with next video
 
         elif event == "-gtp-":  # get trim points based on current frame
-            print("Approximated trials' start/end to video frames (min:sec)...")
+            # Get user-specified values with validation
+            try:
+                trial_duration = int(values["-TRIAL_DURATION-"])
+                trial_spacing = int(values["-TRIAL_SPACING-"])
+            except ValueError:
+                popup("Trial duration and spacing must be valid integers", "error")
+                continue
+
+            # Validate that values are positive
+            if trial_duration <= 0 or trial_spacing <= 0:
+                popup("Duration and spacing must be positive values", "error")
+                continue
+
+            # Validate that spacing is at least as long as duration (warn about overlaps)
+            if trial_spacing < trial_duration:
+                if not popup(
+                    f"Warning: Trial spacing ({trial_spacing}s) is less than trial duration ({trial_duration}s). Trials will overlap. Continue?",
+                    "yesno",
+                ):
+                    continue
+
+            # Warn if trials may extend beyond video length
+            total_video_time = vid.tot_frames / vid.fps
+            estimated_end_time = trial_spacing * (vid.trial_num - 1) + trial_duration
+            if estimated_end_time > total_video_time:
+                if not popup(
+                    f"Warning: Trials may extend beyond video length ({total_video_time:.0f}s). Continue?",
+                    "yesno",
+                ):
+                    continue
+
+            print(
+                f"Approximated trials' start/end to video frames (min:sec)... [Duration: {trial_duration}s, Spacing: {trial_spacing}s]"
+            )
             if vid.trial_num == 0:
                 vid.trial_num = 12
 
@@ -1139,8 +1195,8 @@ def main(debug=False):
             t.trim_labels = list()
 
             for i in range(vid.trial_num):
-                start_frame = vid.cur_frame + 240 * vid.fps * i
-                end_frame = start_frame + 120 * vid.fps
+                start_frame = vid.cur_frame + trial_spacing * vid.fps * i
+                end_frame = start_frame + trial_duration * vid.fps
 
                 if (start_frame > vid.tot_frames) or (end_frame > vid.tot_frames):
                     window[trial_list[i] + "_start"].update(
