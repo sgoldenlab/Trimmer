@@ -570,9 +570,10 @@ def buildWindow(
                     font="Arial 8",
                     relief="groove",
                     background_color="white",
-                    size=(8, 1),
+                    size=(14, 1),
                     pad=(0, 1),
                     enable_events=True,
+                    auto_size_text=False,
                 ),
                 sg.T(
                     "",
@@ -580,9 +581,10 @@ def buildWindow(
                     font="Arial 8",
                     relief="groove",
                     background_color="white",
-                    size=(8, 1),
+                    size=(14, 1),
                     pad=(0, 1),
                     enable_events=True,
+                    auto_size_text=False,
                 ),
                 sg.B(
                     "GOTO",
@@ -615,7 +617,17 @@ def buildWindow(
     # top right of GUI, has animal and session info from behavior file
     # incorporates trim column layout for ease when constructing window
     info_column = [
-        [sg.Column(trim_col, pad=(0, 0), vertical_alignment="bottom", size=(350, 375))],
+        [
+            sg.Column(
+                trim_col,
+                pad=(0, 0),
+                vertical_alignment="bottom",
+                size=(450, 375),
+                scrollable=False,
+                expand_x=False,
+                expand_y=False,
+            )
+        ],
         [
             sg.Column(
                 [
@@ -677,7 +689,7 @@ def buildWindow(
                 expand_x=True,
                 vertical_alignment="bottom",
                 pad=(0, 0),
-                size=(350, None),
+                size=(450, 300),
             ),
         ],
     ]
@@ -703,7 +715,17 @@ def buildWindow(
         finalize=True,
         enable_close_attempted_event=True,
         resizable=True,
+        use_default_focus=False,
+        keep_on_top=False,
+        disable_minimize=False,
     )
+
+    # Get the initial window size and set it as minimum to prevent flickering
+    # This prevents the window from shrinking during batch updates
+    window.TKroot.update_idletasks()
+    current_size = window.size
+    window.set_min_size(current_size)
+
     return window
 
 
@@ -1297,10 +1319,10 @@ def main(debug=False):
 
                 if (start_frame > vid.tot_frames) or (end_frame > vid.tot_frames):
                     window[trial_list[i] + "_start"].update(
-                        "Out of frames", text_color="black"
+                        "Out of range", text_color="gray"
                     )
                     window[trial_list[i] + "_end"].update(
-                        "Out of frames", text_color="black"
+                        "Out of range", text_color="gray"
                     )
                     window[f"{trial_list[i]}_ADD_TRIMPTS"].update(disabled=True)
                     window[f"{trial_list[i]}_gstart"].update(disabled=True)
