@@ -7,10 +7,10 @@ from time import gmtime, sleep, strftime, time
 import cv2
 import FreeSimpleGUI as sg
 import imutils
-from config import PreferencesManager
 import numpy as np
 import pandas as pd
 import yaml
+from config import PreferencesManager
 from imutils.video import FileVideoStream
 from logging_config import setup_logging
 from loguru import logger
@@ -152,7 +152,7 @@ def buildWindow(
             sg.In(
                 default_text=preferences.get("last_folder", ""),
                 size=(40, 1),
-                enable_events=True,
+                enable_events=False,
                 key="-FOLDERI-",
                 pad=((1, 5), 0),
             ),
@@ -160,11 +160,17 @@ def buildWindow(
                 initial_folder=preferences.get("last_folder", "./"),
                 font="Arial 10",
                 pad=((0, 25), 0),
+                enable_events=True,
+                target="-FOLDERI-",
+            ),
+            sg.Button(
+                "Load Folder", font="Arial 10", key="-LOAD_FOLDER-", pad=((5, 0), 0)
             ),
             sg.Text("Output Folder:", font="Arial 10", pad=(0, 0)),
             sg.In(
-                "", size=(40, 1), enable_events=True, key="-FOLDERO-", pad=((1, 5), 0)
+                "", size=(40, 1), enable_events=False, key="-FOLDERO-", pad=((1, 5), 0)
             ),
+            sg.FolderBrowse(initial_folder="./", font="Arial 10", pad=((0, 5), 0)),
             sg.Push(),
             place_noex(sg.B("Help", size=(7, 1), font="Arial 10", k="bHelp")),
         ],
@@ -889,6 +895,10 @@ def main(debug=False):
     setup_logging()
     logger.info("Trimmer GUI started")
 
+    # Load preferences
+    prefs_manager = PreferencesManager()
+    prefs = prefs_manager.preferences
+
     # 1 ---------------- build layout/initialize variable
     window = buildWindow(debug=debug, preferences=prefs)
     vidFile = None
@@ -960,8 +970,19 @@ def main(debug=False):
             timeout = 1000 // fps
 
         # if source folder chosen, scan and update
-        if event == "-FOLDERI-" and timeout == None:
+        if event == "-LOAD_FOLDER-" and timeout == None:
             folder_in = values["-FOLDERI-"]
+
+            # Validate that the folder path exists
+            if not folder_in:
+                popup("Please select a folder first.", "error")
+                continue
+            if not os.path.isdir(folder_in):
+                popup(
+                    f"The selected path is not a valid directory: {folder_in}", "error"
+                )
+                continue
+
             if debug:
                 print("Videos folder: ", folder_in)
             if values["-FOLDERO-"] == "":  # provide default output folder if none given
