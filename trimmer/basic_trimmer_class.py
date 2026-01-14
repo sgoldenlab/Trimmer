@@ -1,15 +1,16 @@
 # %% Imports
 
-import cv2
-import pandas as pd
-import numpy as np
 import os
-import FreeSimpleGUI as sg
 from datetime import datetime
-from time import gmtime, strftime, time, sleep
+from time import gmtime, sleep, strftime, time
+
+import cv2
+import FreeSimpleGUI as sg
 import imutils
-from imutils.video import FileVideoStream
+import numpy as np
+import pandas as pd
 import yaml
+from imutils.video import FileVideoStream
 
 # %% Setup
 # src_fold = r'./'  # init source folder"
@@ -462,18 +463,28 @@ def buildWindow(debug=False):  # TODO: disable text boxes, buttons etc as releva
                 pad=(0, (0, 5)),
             ),
             sg.B(
+                "Get Inter-Trial Clips",
+                k="-GET_INTER_TRIAL-",
+                expand_x=False,
+                size=(20, 1),
+                font="Arial 12",
+                pad=(5, (0, 5)),
+            ),
+        ],
+        [
+            sg.B(
                 "Add all",
                 font="Arial 12",
                 k="-add_all-",
                 auto_size_button=True,
-                pad=(12, (0, 5)),
+                pad=(0, (0, 5)),
             ),
             sg.B(
                 "Clear all",
                 font="Arial 12",
                 k="-clr-",
                 auto_size_button=True,
-                pad=(0, (0, 5)),
+                pad=(12, (0, 5)),
             ),
         ],
         [
@@ -1170,6 +1181,44 @@ def main(debug=False):
             # to track actual trial ends when modifying for clips
             original_t_starts = t.trim_starts.copy()
             original_t_ends = t.trim_ends.copy()
+
+        elif event == "-GET_INTER_TRIAL-":  # generate inter-trial interval clips
+            print("Generating inter-trial interval clips...")
+            if vid.trial_num == 0:
+                vid.trial_num = 12
+
+            # Validate that trial trim points exist
+            if len(t.trim_starts) == 0 or len(t.trim_ends) == 0:
+                popup(
+                    "Please generate trial trim points first using 'Get Trimpoints'",
+                    "error",
+                )
+                continue
+
+            # Generate inter-trial clips
+            inter_clips_added = 0
+            for i in range(len(t.trim_ends) - 1):
+                inter_start = t.trim_ends[i]  # End of trial N
+                inter_end = t.trim_starts[i + 1]  # Start of trial N+1
+
+                # Check if interval is valid
+                if inter_end <= inter_start:
+                    print(
+                        f"Skipping invalid interval between trial {i + 1} and {i + 2}"
+                    )
+                    continue
+
+                # Add to trim points with inter-trial label
+                trial_idx = i  # Corresponds to preceding trial
+                label = f"inter_trial_{i + 1}"
+                t.add_trim_points(trial_idx, inter_start, inter_end, label)
+                inter_clips_added += 1
+
+            # Update listbox display
+            t.get_printed_trimpoints_listbox(vid.fps)
+            listbox_elem.update(t.printout)
+
+            print(f"Added {inter_clips_added} inter-trial interval clips")
 
         elif event in [i + "_gstart" for i in trial_list] or event in [
             i + "_gend" for i in trial_list
