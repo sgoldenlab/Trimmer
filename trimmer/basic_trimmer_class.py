@@ -854,13 +854,36 @@ def main(debug=False):
     t = None
     # sg.set_options(scaling=5)
     # 2 ---------------- open window :))))
+    # Setup error logging
+    import traceback
+    from datetime import datetime
+
+    error_log_path = os.path.join(os.getcwd(), "trimmer_error.log")
+
     while True:
-        image_elem = window["-IMAGE-"]
-        slider_elem = window["-SLIDER-"]
-        listbox_elem = window[
-            "-tpts_out-"
-        ]  # listbox with trim points to be exported, if any were added
-        event, values = window.read(timeout=timeout)
+        try:
+            image_elem = window["-IMAGE-"]
+            slider_elem = window["-SLIDER-"]
+            listbox_elem = window[
+                "-tpts_out-"
+            ]  # listbox with trim points to be exported, if any were added
+            event, values = window.read(timeout=timeout)
+
+            # Log all non-timeout events to file for debugging
+            if event not in (sg.TIMEOUT_KEY, None):
+                with open(error_log_path, "a") as f:
+                    f.write(f"{datetime.now():%H:%M:%S} - Event: {repr(event)}\n")
+        except Exception as e:
+            with open(error_log_path, "a") as f:
+                f.write(f"\n{'=' * 60}\n")
+                f.write(f"EXCEPTION at {datetime.now()}\n")
+                f.write(f"Event: {repr(event) if 'event' in locals() else 'N/A'}\n")
+                f.write(f"Exception: {str(e)}\n")
+                f.write(traceback.format_exc())
+                f.write(f"{'=' * 60}\n")
+            print(f"ERROR: Exception caught - see {error_log_path} for details")
+            print(f"Exception: {str(e)}")
+            raise
 
         if stop:
             close_vid(vidFile)
