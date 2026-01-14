@@ -829,7 +829,7 @@ def reset_info(
         window["-mouseID-"].update(value=info["mouse"])
         window["-pID-"].update(value=info["experiment"])
         window["-sess-"].update(value=info["session"])
-        print("loaded info from last entry in matadata file")
+        print("Loaded info from last entry in metadata file")
     return window
 
 
@@ -940,12 +940,13 @@ def main(debug=False):
             if (vidFile is not None) and (
                 vidFile.running()
             ):  # if a video is still open/running
-                print("closing video")
+                print("Closing video... ", end="")
                 close_vid(vidFile)
                 sleep(3)
+                print("Done.")
             try:
                 vidf = next(vfiter)
-            except StopIteration as err:
+            except StopIteration:
                 print('No more unprocessed videos found. Please press "Exit."')
                 continue
 
@@ -955,6 +956,7 @@ def main(debug=False):
             fileRelPath = os.path.join(folder_in, fileName)
             filePath = os.path.abspath(fileRelPath)
 
+            print("Loading video... ", end="")
             logger.info(f"Loading video: {fileName}")
             logger.debug(f"Video path: {filePath}")
 
@@ -967,6 +969,7 @@ def main(debug=False):
             sleep(2.0)  # give time to load video
             vidFile.start()
             sleep(8.0)  # give time for thread to start up
+            print("Done.")
 
             # reset variables with video information
             tot_frames = vidFile.stream.get(cv2.CAP_PROP_FRAME_COUNT)
