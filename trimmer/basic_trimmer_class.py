@@ -1,15 +1,16 @@
 # %% Imports
 
-import cv2
-import pandas as pd
-import numpy as np
 import os
-import FreeSimpleGUI as sg
 from datetime import datetime
-from time import gmtime, strftime, time, sleep
+from time import gmtime, sleep, strftime, time
+
+import cv2
+import FreeSimpleGUI as sg
 import imutils
-from imutils.video import FileVideoStream
+import numpy as np
+import pandas as pd
 import yaml
+from imutils.video import FileVideoStream
 
 # %% Setup
 # src_fold = r'./'  # init source folder"
@@ -938,6 +939,19 @@ def main(debug=False):
             print("Video FPS: ", vid.fps)
             timeout = 1000 // vid.fps
             t = trim_list(trial_num)
+
+            # Clear the "Added Trim Points" listbox
+            listbox_elem.update([])
+
+            # Clear all trial input boxes (start, end, label for trials 1-12)
+            for trial in trial_list:
+                window[f"{trial}_start"].update("", text_color="black")
+                window[f"{trial}_end"].update("", text_color="black")
+                window[f"{trial}_label"].update("")
+                # Re-enable buttons in case they were disabled
+                window[f"{trial}_ADD_TRIMPTS"].update(disabled=False)
+                window[f"{trial}_gstart"].update(disabled=False)
+                window[f"{trial}_gend"].update(disabled=False)
 
             # reset slider, image
             slider_elem.update(0, range=(0, vid.tot_frames))
