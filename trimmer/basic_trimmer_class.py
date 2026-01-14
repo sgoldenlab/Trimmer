@@ -31,8 +31,8 @@ class trim_list:
         self.trim_pts_array = np.ndarray((trial_num, 3))
         self.trim_pts_labels = np.ndarray((trial_num, 2), dtype="object")
         self.trim_pts_array[:] = np.nan
-        print("TRIM ARRAY", self.trim_pts_array)
-        print("TRIM LABELS", self.trim_pts_labels)
+        # print("TRIM ARRAY", self.trim_pts_array)
+        # print("TRIM LABELS", self.trim_pts_labels)
         self.printout = list()  # will output list of trimpoints added to be saved
 
     def add_trim_points(self, trial_idx, trim_start, trim_end, trim_label):
