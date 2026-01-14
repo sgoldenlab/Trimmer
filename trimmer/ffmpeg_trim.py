@@ -1,10 +1,15 @@
+import asyncio
 import os
+import sys
+import time
+from datetime import datetime
+
 import ffmpeg as ff
 import numpy as np
+import PySimpleGUI as sg
 import yaml
 from asynccpu import ProcessTaskPoolExecutor
-import asyncio
-import PySimpleGUI as sg
+from loguru import logger
 
 # %% Functions
 
@@ -123,6 +128,10 @@ async def trim_process(task_id, v_in, t_start, t_end):
 
 
 async def main(video, metadata, replace=False, debug=True):
+    video_start_time = time.time()
+    logger.info(f"\n{'=' * 50}")
+    logger.info(f"Processing video: {video}")
+
     # for video in to_trim_list:
     # TODO: input() or in gui to ask whether to down sample,
     #   diff fx or modified trim_process to include downsampling with ff.filter I think
@@ -134,9 +143,26 @@ async def main(video, metadata, replace=False, debug=True):
     vid_path = video_info["filepath"]
     num_frames = video_info["num_frames"]
     fps = video_info["FPS"]
+    height = (
+        video_info.get("height:width", "unknown").split(":")[0]
+        if "height:width" in video_info
+        else "unknown"
+    )
+    width = (
+        video_info.get("height:width", "unknown").split(":")[1]
+        if "height:width" in video_info
+        else "unknown"
+    )
+
     # height width?
     assert os.path.isfile(vid_path), f"no video found: {vid_path}"
     print(f'Trimming video: "{os.path.abspath(vid_path)}"')
+
+    # Log video information
+    logger.info(f"  Video path: {vid_path}")
+    logger.info(f"  Resolution: {height}x{width}")
+    logger.info(f"  Total frames: {num_frames}, FPS: {fps}")
+    logger.info(f"  Duration: {int(num_frames) / int(fps):.2f} seconds")
 
     # export info
     times_path = export_info["times_path"]
@@ -151,6 +177,17 @@ async def main(video, metadata, replace=False, debug=True):
         "clips_details"
     ]  # np.load(labels_path, allow_pickle=True)
 
+    logger.info(f"  Number of clips to generate: {num_clips}")
+
+    # Log each clip before processing
+    logger.info(f"\nClip details:")
+    for i, (label, time_range) in enumerate(clip_labels.items()):
+        start_frame, end_frame = trim_points[i]
+        duration = (end_frame - start_frame) / int(fps)
+        logger.info(
+            f"  {i + 1}. {label}: frames {int(start_frame)}-{int(end_frame)} ({duration:.2f}s)"
+        )
+
     # TODO: may change this to clips_excluded or something, if excluded checkboxes actually get used
     #   Currently excluded cboxes aren't needed since trimpoints need to be manually added.
     # keys_to_remove = [k for k, v in trim_points.items() if k not in ch_ranges]
@@ -161,6 +198,15 @@ async def main(video, metadata, replace=False, debug=True):
     clip_paths = [
         (get_clip_name(clip, out_base, replace=replace)) for clip in clip_labels
     ]
+
+    # Log skipped clips (already exist)
+    skipped = [path for path in clip_paths if path is None]
+    if skipped:
+        logger.warning(f"  Skipped {len(skipped)} existing clips (replace=False)")
+
+    # Perform clipping
+    logger.info(f"\nClipping started...")
+    clip_start_time = time.time()
 
     with ProcessTaskPoolExecutor(
         max_workers=3, cancel_tasks_when_shutdown=True
@@ -176,7 +222,26 @@ async def main(video, metadata, replace=False, debug=True):
             for x, y, z in zip(trim_points[:, 0], trim_points[:, 1], clip_paths)
             if z is not None
         }
-        results = await asyncio.gather(*awaitables)
+        try:
+            results = await asyncio.gather(*awaitables)
+        except Exception as e:
+            logger.error(f"Error during clipping: {e}")
+            raise
+
+    clip_end_time = time.time()
+    video_end_time = time.time()
+
+    # Log completion with timing
+    clips_created = len([p for p in clip_paths if p is not None])
+    logger.info(f"Clipping completed: {clips_created} clips created")
+    logger.info(f"  Clipping time: {clip_end_time - clip_start_time:.2f} seconds")
+    logger.info(
+        f"  Total video processing time: {video_end_time - video_start_time:.2f} seconds"
+    )
+    logger.info(f"  Output location: {out_base}")
+    if replace:
+        logger.warning(f"  Overwrites enabled (replace=True)")
+
     metadata[video].update({"trimmed": True})  # video now labeled as trimmed
     print(f'...finished trimming clips for video "{os.path.abspath(video)}"')
 
@@ -194,6 +259,29 @@ if __name__ == "__main__":
         print("No folder selected. Closing...")
         quit()
     meta_filepath = os.path.join(meta_fold, "metadata.yaml")
+
+    # Setup separate clipping log in output folder
+    clipping_log_path = os.path.join(
+        meta_fold, f"clipping_{datetime.now():%Y%m%d_%H%M%S}.log"
+    )
+
+    # Configure logger for clipping
+    logger.remove()  # Remove default handler
+    logger.add(
+        sys.stderr,
+        format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>",
+        level="INFO",
+    )
+    logger.add(
+        clipping_log_path,
+        format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {message}",
+        level="DEBUG",
+    )
+
+    logger.info("=" * 60)
+    logger.info("FFmpeg Video Clipping Session Started")
+    logger.info(f"Metadata folder: {meta_fold}")
+    logger.info("=" * 60)
 
     # check for metadata
     bools = ["false", "False", False]  # potential false values
@@ -215,7 +303,28 @@ if __name__ == "__main__":
     out_base = meta_fold  # unless changed, output is same as output from trimmer
     # ch_ranges = ['post_door_close', 'pre_lever_in']#, 'pre_lev_press'] # not using behavioral data in this version
 
+    # Track overall timing
+    session_start_time = time.time()
+
     # %% Main loop
     for video in to_trim_list:
         asyncio.run(main(video, metadata, replace=False, debug=False))
+
+    session_end_time = time.time()
+
+    # Summary log
+    logger.info("\n" + "=" * 60)
+    logger.info("CLIPPING SESSION SUMMARY")
+    logger.info("=" * 60)
+    logger.info(f"Videos processed: {len(to_trim_list)}")
+    logger.info(
+        f"Total session time: {session_end_time - session_start_time:.2f} seconds"
+    )
+    if len(to_trim_list) > 0:
+        logger.info(
+            f"Average time per video: {(session_end_time - session_start_time) / len(to_trim_list):.2f} seconds"
+        )
+    logger.info(f"Log saved to: {clipping_log_path}")
+    logger.info("=" * 60)
+
     print("\nFinished all trimming.")

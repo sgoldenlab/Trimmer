@@ -7,11 +7,13 @@ from time import gmtime, sleep, strftime, time
 import cv2
 import FreeSimpleGUI as sg
 import imutils
+from config import PreferencesManager
 import numpy as np
 import pandas as pd
 import yaml
-from config import PreferencesManager
 from imutils.video import FileVideoStream
+from logging_config import setup_logging
+from loguru import logger
 
 # %% Setup
 # src_fold = r'./'  # init source folder"
@@ -30,8 +32,8 @@ class trim_list:
         self.trim_pts_array = np.ndarray((trial_num, 3))
         self.trim_pts_labels = np.ndarray((trial_num, 2), dtype="object")
         self.trim_pts_array[:] = np.nan
-        print("TRIM ARRAY", self.trim_pts_array)
-        print("TRIM LABELS", self.trim_pts_labels)
+        # print("TRIM ARRAY", self.trim_pts_array)
+        # print("TRIM LABELS", self.trim_pts_labels)
         self.printout = list()  # will output list of trimpoints added to be saved
 
     def add_trim_points(self, trial_idx, trim_start, trim_end, trim_label):
@@ -470,10 +472,7 @@ def buildWindow(
         [
             sg.Text("Trial Duration (seconds):", font="Arial 10", size=(20, 1)),
             sg.Input(
-                default_text=str(preferences.get("trial_duration", 120)),
-                size=(8, 1),
-                key="-TRIAL_DURATION-",
-                font="Arial 10",
+                default_text="120", size=(8, 1), key="-TRIAL_DURATION-", font="Arial 10"
             ),
         ],
         [
@@ -481,10 +480,7 @@ def buildWindow(
                 "Trial Start-to-Start Spacing (seconds):", font="Arial 10", size=(30, 1)
             ),
             sg.Input(
-                default_text=str(preferences.get("trial_spacing", 240)),
-                size=(8, 1),
-                key="-TRIAL_SPACING-",
-                font="Arial 10",
+                default_text="240", size=(8, 1), key="-TRIAL_SPACING-", font="Arial 10"
             ),
         ],
         [
@@ -848,7 +844,7 @@ def reset_info(
         window["-mouseID-"].update(value=info["mouse"])
         window["-pID-"].update(value=info["experiment"])
         window["-sess-"].update(value=info["session"])
-        print("loaded info from last entry in matadata file")
+        print("Loaded info from last entry in metadata file")
     return window
 
 
@@ -867,9 +863,9 @@ def popup(warning: str, type: str = None):
 def main(debug=False):
     sg.theme("Dark Blue 3")
 
-    # Load preferences
-    prefs_manager = PreferencesManager()
-    prefs = prefs_manager.preferences
+    # Initialize logging (will be reconfigured when output folder selected)
+    setup_logging()
+    logger.info("Trimmer GUI started")
 
     # 1 ---------------- build layout/initialize variable
     window = buildWindow(debug=debug, preferences=prefs)
@@ -952,10 +948,10 @@ def main(debug=False):
             else:
                 folder_out = values["-FOLDERO-"]
 
-            # Save folder preferences
-            prefs_manager.update_preference("last_folder", folder_in)
-            prefs_manager.update_preference("output_folder", folder_out)
-
+            # Reconfigure logging with output folder
+            setup_logging(output_folder=folder_out)
+            logger.info(f"Source folder selected: {folder_in}")
+            logger.info(f"Output folder: {folder_out}")
             # scan source folder for videos and metadata, skip videos already in metadata
             vflist, vdone = scan_video_folder(
                 folder_in, folder_out, file_exts_accepted, debug
@@ -982,12 +978,13 @@ def main(debug=False):
             if (vidFile is not None) and (
                 vidFile.running()
             ):  # if a video is still open/running
-                print("closing video")
+                print("Closing video... ", end="")
                 close_vid(vidFile)
                 sleep(3)
+                print("Done.")
             try:
                 vidf = next(vfiter)
-            except StopIteration as err:
+            except StopIteration:
                 print('No more unprocessed videos found. Please press "Exit."')
                 continue
 
@@ -996,6 +993,10 @@ def main(debug=False):
             fileName = vidf  # 'SA_OF01_EF1_B7_C1_D4_20220321_10h18.mp4'
             fileRelPath = os.path.join(folder_in, fileName)
             filePath = os.path.abspath(fileRelPath)
+
+            print("Loading video... ", end="")
+            logger.info(f"Loading video: {fileName}")
+            logger.debug(f"Video path: {filePath}")
 
             # reset and load some info from metadata if present
             reset_info(window, fileName, filePath, out_folder=folder_out)
@@ -1006,6 +1007,7 @@ def main(debug=False):
             sleep(2.0)  # give time to load video
             vidFile.start()
             sleep(8.0)  # give time for thread to start up
+            print("Done.")
 
             # reset variables with video information
             tot_frames = vidFile.stream.get(cv2.CAP_PROP_FRAME_COUNT)
@@ -1018,6 +1020,10 @@ def main(debug=False):
             print("Height: ", height, " Width: ", width)
             print("my screen size; ", sg.Window.get_screen_size())
             fps = round(vidFile.stream.get(cv2.CAP_PROP_FPS))
+
+            logger.debug(
+                f"Video properties - FPS: {fps}, Total frames: {tot_frames}, Resolution: {width}x{height}"
+            )
             # window['sright'].update(f'{strftime("%M:%S", gmtime(num_frames / fps))}')
             trial_num = 12
             vid = vid_info(fps, tot_frames, height, width, trial_num, 0, ret, frame)
@@ -1261,9 +1267,12 @@ def main(debug=False):
                 ):
                     continue
 
-            # Save trial duration and spacing preferences
-            prefs_manager.update_preference("trial_duration", trial_duration)
-            prefs_manager.update_preference("trial_spacing", trial_spacing)
+            logger.info(
+                f"Generating trim points - Duration: {trial_duration}s, Spacing: {trial_spacing}s"
+            )
+            logger.debug(
+                f"Starting from frame {vid.cur_frame} ({vid.cur_frame / vid.fps:.2f}s)"
+            )
 
             print(
                 f"Approximated trials' start/end to video frames (min:sec)... [Duration: {trial_duration}s, Spacing: {trial_spacing}s]"
@@ -1281,6 +1290,10 @@ def main(debug=False):
             for i in range(vid.trial_num):
                 start_frame = vid.cur_frame + trial_spacing * vid.fps * i
                 end_frame = start_frame + trial_duration * vid.fps
+
+                logger.debug(
+                    f"Trial {i + 1}: {start_frame} to {end_frame} ({t.frame_to_time(start_frame, vid.fps)} to {t.frame_to_time(end_frame, vid.fps)})"
+                )
 
                 if (start_frame > vid.tot_frames) or (end_frame > vid.tot_frames):
                     window[trial_list[i] + "_start"].update(
@@ -1561,6 +1574,8 @@ def main(debug=False):
 
         # save click
         elif event == "-save-":
+            logger.info(f"Saving trim points for video: {values['fileName']}")
+
             if debug:
                 print("Saving...")
             # TODO:
@@ -1677,6 +1692,20 @@ def main(debug=False):
                 )
             # save to yaml file
             save_metadata(out_meta, meta_filepath)
+
+            # Log save completion
+            logger.info(f"Total clips: {len(clip_labels_array)} clips")
+            logger.info(f"Metadata saved: {meta_filepath}")
+            logger.info(f"Times array saved: {trimpts_name}")
+            logger.info(f"Labels array saved: {labels_name}")
+            logger.info(f"CSV summary saved: {out_base}.csv")
+
+            # Log each clip
+            for i, (trial_idx, label) in enumerate(t.trim_pts_labels):
+                start, end = t.trim_pts_array[i][1], t.trim_pts_array[i][2]
+                logger.debug(
+                    f"  Clip {i + 1}: Trial {int(trial_idx) + 1}, Label '{label}', {t.frame_to_time(start, vid.fps)}-{t.frame_to_time(end, vid.fps)}"
+                )
 
         # set current frame and read from stream
         vidFile.stream.set(cv2.CAP_PROP_POS_FRAMES, vid.cur_frame)
