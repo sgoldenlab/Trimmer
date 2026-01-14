@@ -453,6 +453,28 @@ def buildWindow(debug=False):  # TODO: disable text boxes, buttons etc as releva
     # and exit buttons
     trim_col = [
         [
+            sg.Text("Trial Duration (seconds):", font="Arial 10", size=(20, 1)),
+            sg.Input(
+                default_text="120", size=(8, 1), key="-TRIAL_DURATION-", font="Arial 10"
+            ),
+        ],
+        [
+            sg.Text(
+                "Trial Start-to-Start Spacing (seconds):", font="Arial 10", size=(30, 1)
+            ),
+            sg.Input(
+                default_text="240", size=(8, 1), key="-TRIAL_SPACING-", font="Arial 10"
+            ),
+        ],
+        [
+            sg.Text(
+                "(Spacing is from start of trial N to start of trial N+1)",
+                font="Arial 9",
+                text_color="gray",
+                pad=(0, (0, 10)),
+            ),
+        ],
+        [
             # sg.Text('', size=(6, 1), pad=(1,0)),
             sg.B(
                 "Get trial timepoints",
@@ -832,13 +854,36 @@ def main(debug=False):
     t = None
     # sg.set_options(scaling=5)
     # 2 ---------------- open window :))))
+    # Setup error logging
+    import traceback
+    from datetime import datetime
+
+    error_log_path = os.path.join(os.getcwd(), "trimmer_error.log")
+
     while True:
-        image_elem = window["-IMAGE-"]
-        slider_elem = window["-SLIDER-"]
-        listbox_elem = window[
-            "-tpts_out-"
-        ]  # listbox with trim points to be exported, if any were added
-        event, values = window.read(timeout=timeout)
+        try:
+            image_elem = window["-IMAGE-"]
+            slider_elem = window["-SLIDER-"]
+            listbox_elem = window[
+                "-tpts_out-"
+            ]  # listbox with trim points to be exported, if any were added
+            event, values = window.read(timeout=timeout)
+
+            # Log all non-timeout events to file for debugging
+            if event not in (sg.TIMEOUT_KEY, None):
+                with open(error_log_path, "a") as f:
+                    f.write(f"{datetime.now():%H:%M:%S} - Event: {repr(event)}\n")
+        except Exception as e:
+            with open(error_log_path, "a") as f:
+                f.write(f"\n{'=' * 60}\n")
+                f.write(f"EXCEPTION at {datetime.now()}\n")
+                f.write(f"Event: {repr(event) if 'event' in locals() else 'N/A'}\n")
+                f.write(f"Exception: {str(e)}\n")
+                f.write(traceback.format_exc())
+                f.write(f"{'=' * 60}\n")
+            print(f"ERROR: Exception caught - see {error_log_path} for details")
+            print(f"Exception: {str(e)}")
+            raise
 
         if stop:
             close_vid(vidFile)
@@ -1141,7 +1186,40 @@ def main(debug=False):
         # "Next Video" button => update info on slide with next video
 
         elif event == "-gtp-":  # get trim points based on current frame
-            print("Approximated trials' start/end to video frames (min:sec)...")
+            # Get user-specified values with validation
+            try:
+                trial_duration = int(values["-TRIAL_DURATION-"])
+                trial_spacing = int(values["-TRIAL_SPACING-"])
+            except ValueError:
+                popup("Trial duration and spacing must be valid integers", "error")
+                continue
+
+            # Validate that values are positive
+            if trial_duration <= 0 or trial_spacing <= 0:
+                popup("Duration and spacing must be positive values", "error")
+                continue
+
+            # Validate that spacing is at least as long as duration (warn about overlaps)
+            if trial_spacing < trial_duration:
+                if not popup(
+                    f"Warning: Trial spacing ({trial_spacing}s) is less than trial duration ({trial_duration}s). Trials will overlap. Continue?",
+                    "yesno",
+                ):
+                    continue
+
+            # Warn if trials may extend beyond video length
+            total_video_time = vid.tot_frames / vid.fps
+            estimated_end_time = trial_spacing * (vid.trial_num - 1) + trial_duration
+            if estimated_end_time > total_video_time:
+                if not popup(
+                    f"Warning: Trials may extend beyond video length ({total_video_time:.0f}s). Continue?",
+                    "yesno",
+                ):
+                    continue
+
+            print(
+                f"Approximated trials' start/end to video frames (min:sec)... [Duration: {trial_duration}s, Spacing: {trial_spacing}s]"
+            )
             if vid.trial_num == 0:
                 vid.trial_num = 12
 
@@ -1153,8 +1231,8 @@ def main(debug=False):
             t.trim_labels = list()
 
             for i in range(vid.trial_num):
-                start_frame = vid.cur_frame + 240 * vid.fps * i
-                end_frame = start_frame + 120 * vid.fps
+                start_frame = vid.cur_frame + trial_spacing * vid.fps * i
+                end_frame = start_frame + trial_duration * vid.fps
 
                 if (start_frame > vid.tot_frames) or (end_frame > vid.tot_frames):
                     window[trial_list[i] + "_start"].update(
