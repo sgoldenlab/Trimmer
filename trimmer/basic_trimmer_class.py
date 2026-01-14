@@ -933,11 +933,7 @@ def main(debug=False):
             event, values = window.read(timeout=timeout)
 
             # Handle window close immediately, before any other processing
-            if (
-                event == sg.WINDOW_CLOSE_ATTEMPTED_EVENT
-                or event == "Exit"
-                or event == sg.WIN_CLOSED
-            ):
+            if event == sg.WINDOW_CLOSE_ATTEMPTED_EVENT or event == "Exit":
                 if popup(
                     "Do you really want to exit?\n(Have you saved your work?)", "yesno"
                 ):
@@ -1635,7 +1631,16 @@ def main(debug=False):
 
         # save click
         elif event == "-save-":
-            logger.info(f"Saving trim points for video: {values['fileName']}")
+            # Check if video and folder are loaded
+            if vid is None or vidFile is None or "fileName" not in locals():
+                popup("Please load a video first before saving.", "error")
+                continue
+
+            if "folder_out" not in locals():
+                popup("Please load a folder first before saving.", "error")
+                continue
+
+            logger.info(f"Saving trim points for video: {fileName}")
 
             if debug:
                 print("Saving...")
