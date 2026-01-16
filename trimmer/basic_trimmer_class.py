@@ -10,9 +10,9 @@ import imutils
 import numpy as np
 import pandas as pd
 import yaml
-from config import PreferencesManager
 from imutils.video import FileVideoStream
-from logging_config import setup_logging
+from .config import PreferencesManager
+from .logging_config import setup_logging
 from loguru import logger
 
 # %% Setup

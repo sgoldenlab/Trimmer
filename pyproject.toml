@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [tool.setuptools]
-package-dir = { "" = "trimmer" }
+packages = ["trimmer"]
 
 [project.scripts]
-basic_trimmer = "basic_trimmer_class:main"
+trimmer = "trimmer.basic_trimmer_class:main"

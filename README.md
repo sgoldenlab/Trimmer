@@ -60,5 +60,13 @@ cd Trimmer
 After uv is installed, the environment can be quickly installed from within the with:  
 `uv sync`
 
-Once complete, the trimmer GUI should launch with
-`uv run basic_trimmer`
+Once complete, the trimmer GUI can be launched from within its folder with:
+```bash
+uv run trimmer
+```
+or, after activating environment:
+```bash
+python -m trimmer
+```
+
+Alternatively, on Windows you can use the batch file `run_trimmer.bat` to start the GUI.
