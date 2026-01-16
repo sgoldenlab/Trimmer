@@ -508,7 +508,7 @@ def buildWindow(
                 pad=(0, (0, 5)),
             ),
             sg.B(
-                "Get Inter-Trial Clips",
+                "Add Inter-Trial Clips",
                 k="-GET_INTER_TRIAL-",
                 expand_x=False,
                 size=(20, 1),
@@ -533,31 +533,13 @@ def buildWindow(
             ),
         ],
         [
-            sg.T(
-                "Trial #", font="Arial 10", size=(9, 1), pad=(0, 0)
-            ),  # sg.T('',size=(5,1)),
-            sg.T(
-                "Trim start",
-                font="Arial 10",
-                size=(9, 1),
-                justification="center",
-                pad=((0, 9), 0),
-            ),
-            sg.T(
-                "Trim end",
-                font="Arial 10",
-                size=(9, 1),
-                justification="left",
-                pad=((0, 9), 0),
-            ),
-            sg.T(
-                "Trim Point Label:",
-                font="Arial 8",
-                size=(10, 2),
-                justification="center",
-                pad=((0, 25), (0, 0)),
-            ),
-            # sg.T('Exclude?', font='Arial 8', size=(7, 1), justification='left', expand_x=False),
+            sg.T("Trial #", font="Arial 10", size=(6, 1), pad=(0, 0)),
+            sg.T("", size=(2, 1)),  # Spacer for GOTO button
+            sg.T("Trim start", font="Arial 10", size=(10, 1), justification="center", pad=(0, 0)),
+            sg.T("Trim end", font="Arial 10", size=(10, 1), justification="center", pad=(0, 0)),
+            sg.T("", size=(8, 1)),  # Spacer for GOTO button
+            sg.T("Label", font="Arial 10", size=(5, 1), justification="center", pad=(0, 0)),
+            sg.T("", size=(2, 1)),  # Spacer for + button
         ],
     ]
 
@@ -627,8 +609,8 @@ def buildWindow(
             sg.Column(
                 trim_col,
                 pad=(0, 0),
-                vertical_alignment="bottom",
-                size=(450, 375),
+                vertical_alignment="top",
+                size=(450, 480),
                 scrollable=False,
                 expand_x=False,
                 expand_y=False,
