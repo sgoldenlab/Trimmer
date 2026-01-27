@@ -5,8 +5,8 @@ import time
 from datetime import datetime
 
 import ffmpeg as ff
+import FreeSimpleGUI as sg
 import numpy as np
-import PySimpleGUI as sg
 import yaml
 from asynccpu import ProcessTaskPoolExecutor
 from loguru import logger
