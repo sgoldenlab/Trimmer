@@ -141,7 +141,7 @@ async def main(video, metadata, replace=False, debug=True):
     assert isTrimmed in bools, f"video appears to have been trimmed already: {video}"
     # video info
     vid_path = video_info["filepath"]
-    num_frames = video_info["num_frames"]
+    num_frames = int(float(video_info["num_frames"]))
     fps = video_info["FPS"]
     height = (
         video_info.get("height:width", "unknown").split(":")[0]
@@ -162,7 +162,7 @@ async def main(video, metadata, replace=False, debug=True):
     logger.info(f"  Video path: {vid_path}")
     logger.info(f"  Resolution: {height}x{width}")
     logger.info(f"  Total frames: {num_frames}, FPS: {fps}")
-    logger.info(f"  Duration: {int(num_frames) / int(fps):.2f} seconds")
+    logger.info(f"  Duration: {num_frames / int(fps):.2f} seconds")
 
     # export info
     times_path = export_info["times_path"]
